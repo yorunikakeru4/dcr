@@ -1,18 +1,21 @@
-use crate::config::{PROFILE, flags};
+use crate::config::{flags, PROFILE};
 use crate::utils::log::warn;
 
 pub struct BuildRunFlags {
     pub profile: String,
+    pub target: Option<String>,
     pub force: bool,
     pub clean: bool,
 }
 
 pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
     let mut profile = PROFILE.to_string();
+    let mut target = None;
     let mut force = false;
     let mut clean = false;
+    let mut iter = args.iter();
 
-    for arg in args {
+    while let Some(arg) = iter.next() {
         if !arg.starts_with("--") {
             warn("Unknown argument");
             return Err(1);
@@ -24,6 +27,15 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
         }
         if candidate == "clean" {
             clean = true;
+            continue;
+        }
+        if candidate == "target" {
+            if let Some(t) = iter.next() {
+                target = Some(t.clone());
+            } else {
+                warn("--target requires a value");
+                return Err(1);
+            }
             continue;
         }
         if flags(candidate).is_some() {
@@ -40,6 +52,7 @@ pub fn parse_build_run_flags(args: &[String]) -> Result<BuildRunFlags, i32> {
 
     Ok(BuildRunFlags {
         profile,
+        target,
         force,
         clean,
     })

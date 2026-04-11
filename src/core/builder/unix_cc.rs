@@ -155,8 +155,10 @@ fn build_objects(
             if !ctx.standard.is_empty() && ctx.language.to_lowercase() != "asm" {
                 cmd.arg(format!("-std={}", ctx.standard));
             }
-            for flag in default_flags(ctx.profile) {
-                cmd.arg(flag);
+            if ctx.cflags.is_empty() {
+                for flag in default_flags(ctx.profile) {
+                    cmd.arg(flag);
+                }
             }
             for flag in ctx.cflags {
                 cmd.arg(flag);

@@ -4,9 +4,46 @@ use crate::core::config::Config;
 use crate::core::runner::run_binary;
 use crate::utils::fs::find_project_root;
 use crate::utils::log::error;
-use crate::utils::text::{BOLD_GREEN, colored};
+use crate::utils::text::{colored, BOLD_GREEN};
 use std::path::Path;
 use std::process::Command;
+
+fn get_run_cmd(
+    config: &Config,
+    profile: &str,
+    target: Option<&str>,
+    version: &str,
+) -> Option<String> {
+    let base = config.get("run.cmd").and_then(|v| v.as_str());
+    let target_cmd = if let Some(t) = target {
+        let normalized_t = normalize_target_os(t);
+        config
+            .get(&format!("run.{}.cmd", normalized_t))
+            .or_else(|| config.get(&format!("run.{}.cmd", t)))
+            .and_then(|v| v.as_str())
+    } else {
+        None
+    };
+    let profile_cmd = config
+        .get(&format!("run.{}.cmd", profile))
+        .and_then(|v| v.as_str());
+    let cmd = target_cmd.or(profile_cmd).or(base)?;
+    let trimmed = cmd.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(substitute_run_vars(trimmed, profile, version))
+    }
+}
+
+fn normalize_target_os(s: &str) -> &str {
+    match s {
+        "linux" => "x86_64-unknown-linux-gnu",
+        "macos" => "x86_64-apple-darwin",
+        "windows" => "x86_64-pc-windows-msvc",
+        _ => s,
+    }
+}
 
 pub fn run(args: &[String]) -> i32 {
     let start_dir = match std::env::current_dir() {
@@ -59,12 +96,7 @@ pub fn run(args: &[String]) -> i32 {
         .get("package.version")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let run_cmd = config
-        .get("run.cmd")
-        .and_then(|v| v.as_str())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .map(|cmd| substitute_run_vars(&cmd, &flags.profile, version));
+    let run_cmd = get_run_cmd(&config, &flags.profile, flags.target.as_deref(), version);
 
     let kind = build_kind.trim();
     if run_cmd.is_none() && (kind == "staticlib" || kind == "sharedlib") {

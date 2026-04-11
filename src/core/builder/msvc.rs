@@ -1,5 +1,5 @@
-use crate::core::builder::BuildContext;
 use crate::core::builder::common;
+use crate::core::builder::BuildContext;
 use crate::platform;
 use std::fs;
 use std::path::Path;
@@ -66,8 +66,10 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     for obj in &objects {
         cmd.arg(obj);
     }
-    for flag in default_flags(ctx.profile) {
-        cmd.arg(flag);
+    if ctx.cflags.is_empty() {
+        for flag in default_flags(ctx.profile) {
+            cmd.arg(flag);
+        }
     }
     for flag in ctx.cflags {
         cmd.arg(flag);
@@ -217,8 +219,10 @@ fn build_objects(
             if let Some(flag) = msvc_arch_flag(ctx.platform) {
                 cmd.arg(flag);
             }
-            for flag in default_flags(ctx.profile) {
-                cmd.arg(flag);
+            if ctx.cflags.is_empty() {
+                for flag in default_flags(ctx.profile) {
+                    cmd.arg(flag);
+                }
             }
             for flag in ctx.cflags {
                 cmd.arg(flag);

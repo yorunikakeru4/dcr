@@ -8,6 +8,7 @@ Debug (default):
 dcr build
 # or
 dcr build --debug
+dcr build --target linux --debug
 dcr build --debug --clean
 ```
 
@@ -15,6 +16,7 @@ Release:
 
 ```sh
 dcr build --release
+dcr build --target windows --release
 ```
 
 ## Run
@@ -22,7 +24,9 @@ dcr build --release
 ```sh
 dcr run
 # or
+dcr run --target macos
 dcr run --release
+dcr run --target linux --release
 dcr run --release --force
 ```
 
@@ -49,4 +53,5 @@ dcr clean --release --all
 - Build profile flag (`--debug` / `--release`) can be passed in any argument position.
 - Unknown profile flags produce an error.
 - In workspace root, `clean --all` cleans all member projects.
-- `--clean` for `build`/`run` removes `target/<profile>` and paths from `build.clean`.
+- `--target` builds/runs for specified target (short names: `linux`, `macos`, `windows`).
+- `--clean` for `build`/`run` removes `target/<target>/<profile>` and paths from `build.clean`.

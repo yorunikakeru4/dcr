@@ -1,6 +1,6 @@
 # Target directory
 
-By default, DCR writes final artifacts to `target/<profile>/`.
+By default, DCR writes final artifacts to `target/<target>/<profile>/` (where `<target>` is `native` or target triple).
 
 You can override this with `build.target`:
 
@@ -20,4 +20,4 @@ target = "./dist"
 
 ## Important detail
 
-`build.target` changes only the final artifact location. Object cache and dependency sync directories still use `target/<profile>/...`.
+`build.target` changes only the final artifact location. Object cache and dependency sync directories still use `target/<target>/<profile>/...`.

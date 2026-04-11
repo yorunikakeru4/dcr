@@ -43,7 +43,10 @@ Workspace-only root:
 
 ## Optional keys
 
+- `build.inherit`
+- `build.targets`
 - `build.target`
+- `build.platform`
 - `build.cflags`
 - `build.ldflags`
 - `build.exclude`
@@ -58,7 +61,11 @@ Workspace-only root:
 - `build.clean`
 - `build.debug`
 - `build.release`
+- `build.<target>` (target-specific overrides)
 - dependency fields (`include`, `lib`, `libs`, `system`)
 - `[toolchain]` overrides (`cc`, `cxx`, `as`, `ar`, `ld`, `uic`, `moc`, `rcc`)
+- `[toolchain.<target>]` (target-specific toolchain)
 - `[workspace]` members
+- `[workspace.<target>]` (target-specific workspace)
 - `[run]` overrides (`cmd`)
+- `[run.<target>]` (target-specific run)

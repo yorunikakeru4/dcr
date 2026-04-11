@@ -8,6 +8,7 @@ Builds the project in `debug` or `release` profile.
 dcr build
 dcr build --debug
 dcr build --release
+dcr build --target linux --release
 dcr build --release --force
 dcr build --debug --clean
 ```
@@ -54,6 +55,8 @@ dcr build --debug --clean
 
 - Profile flag (`--debug` / `--release`) can appear in any argument position (duplicates are rejected).
 - Unknown profile flags return an error.
+- `--target <triple>` builds for specified target (short names: `linux`, `macos`, `windows`).
+- If no `--target`, builds for `build.targets` or native.
 - Incremental rebuild checks source/object mtime and tracked header dependencies.
 - `--force` skips build cache checks and recompiles.
 - `--clean` removes `target/<profile>` and `build.clean` paths before building.

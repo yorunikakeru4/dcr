@@ -300,6 +300,7 @@ impl Config {
             "generated",
             "expect",
             "clean",
+            "targets",
         ] {
             if let Some(val) = table.get(key) {
                 let arr = val.as_array().ok_or_else(|| {

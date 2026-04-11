@@ -15,8 +15,33 @@ pub struct Workspace {
     pub members: Vec<WorkspaceMember>,
 }
 
-pub fn parse_workspace(config: &Config, root: &Path) -> Result<Option<Workspace>, String> {
-    let table = match config.get("workspace").and_then(|v| v.as_table()) {
+pub fn parse_workspace(
+    config: &Config,
+    profile: &str,
+    target: Option<&str>,
+    root: &Path,
+) -> Result<Option<Workspace>, String> {
+    let mut table = None;
+    // Order: workspace.target.profile, workspace.profile.target, workspace.target, workspace.profile, workspace
+    let combinations = if let Some(t) = target {
+        let normalized_t = crate::cli::build::normalize_target_os(t);
+        vec![
+            format!("workspace.{}.{}", normalized_t, profile),
+            format!("workspace.{}.{}", profile, normalized_t),
+            format!("workspace.{}", normalized_t),
+            format!("workspace.{}", profile),
+            "workspace".to_string(),
+        ]
+    } else {
+        vec![format!("workspace.{}", profile), "workspace".to_string()]
+    };
+    for key in combinations {
+        if let Some(val) = config.get(&key).and_then(|v| v.as_table()) {
+            table = Some(val);
+            break;
+        }
+    }
+    let table = match table {
         Some(t) => t,
         None => return Ok(None),
     };

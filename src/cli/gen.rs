@@ -4,7 +4,7 @@ use crate::core::builder::common;
 use crate::core::config::Config;
 use crate::core::workspace::parse_workspace;
 use crate::utils::fs::find_project_root;
-use crate::utils::log::error;
+use crate::utils::log::{error, warn};
 use std::path::{Path, PathBuf};
 
 // ── helpers copied from cli::build (private there) ─────────────────────────
@@ -528,13 +528,15 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
         }
     }
 
+    let target_dir_binding = normalize_target(&build_target, profile);
     let ctx = BuildContext {
         profile,
         project_name: &name,
         compiler: &resolved_compiler,
         language: &language,
         standard: &standard,
-        target_dir: normalize_target(&build_target),
+        target: Some(build_target.as_str()),
+        target_dir: target_dir_binding.as_deref(),
         kind: normalize_kind(&kind),
         platform: normalize_platform(&platform),
         linker: resolved_linker.as_deref(),
@@ -595,7 +597,7 @@ fn collect_all(root: &Path, profile: &str) -> Result<Vec<ProjectInfo>, String> {
 
     let mut all = Vec::new();
 
-    if let Ok(Some(ws)) = parse_workspace(&config, root) {
+    if let Ok(Some(ws)) = parse_workspace(&config, profile, None, root) {
         for member in &ws.members {
             match collect_project_info(&member.path, profile) {
                 Ok(info) => all.push(info),
@@ -1392,9 +1394,26 @@ fn parse_gen_args(args: &[String]) -> Result<(PathBuf, String), i32> {
     Ok((root, profile))
 }
 
-fn normalize_target(s: &str) -> Option<&str> {
-    let t = s.trim();
-    if t.is_empty() { None } else { Some(t) }
+fn normalize_target_os(s: &str) -> &str {
+    match s {
+        "linux" => "x86_64-unknown-linux-gnu",
+        "macos" => "x86_64-apple-darwin",
+        "windows" => "x86_64-pc-windows-msvc",
+        _ if s.contains('-') => s, // Assume valid triple
+        _ => {
+            warn(&format!("Unknown target '{}', using as-is. Supported short names: linux, macos, windows", s));
+            s
+        }
+    }
+}
+
+fn normalize_target(s: &str, profile: &str) -> Option<String> {
+    let trimmed = normalize_target_os(s.trim());
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(format!("target/{trimmed}/{profile}"))
+    }
 }
 
 fn normalize_kind(s: &str) -> &str {

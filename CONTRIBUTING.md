@@ -22,6 +22,27 @@ cargo check
 - Keep functions small and focused.
 - Prefer clear names over clever ones.
 
+## Target System
+
+DCR supports cross-compilation via `--target <triple>` or short names:
+
+- `dcr build --target linux --release` (maps to `x86_64-unknown-linux-gnu`)
+- `dcr build --target macos --release` (maps to `x86_64-apple-darwin`)
+- `dcr build --target windows --release` (maps to `x86_64-pc-windows-msvc`)
+- Full triples: `dcr build --target aarch64-linux-gnu --release`
+- Configure multiple targets in `dcr.toml`:
+  ```
+  [build.targets]
+  targets = ["linux", "macos"]
+
+  [build.linux]
+  compiler = "gcc"
+
+  [build.macos]
+  compiler = "clang"
+  ```
+- If no `--target`, builds for targets in `build.targets` or native if empty.
+
 ## Checks
 
 Before PR, run:

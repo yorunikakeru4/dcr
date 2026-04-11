@@ -17,7 +17,7 @@ DCR picks a backend from `build.compiler`:
 - Source files are found recursively in `src/` based on `build.language`.
 - `build.roots` and `build.src_disable` can replace the default `src/` root.
 - Mixed language builds use arrays, for example `build.language = ["c", "asm"]`.
-- Each source is compiled to `target/<profile>/obj/<relative-path>.o` (`.obj` on MSVC).
+- Each source is compiled to `target/<target>/<profile>/obj/<relative-path>.o` (`.obj` on MSVC, where `<target>` is `native` or target triple).
 - Recompile happens when source mtime is newer than object mtime.
 - `build.exclude` removes paths from source/header collection; `build.include` re-allows matching paths and has priority over `exclude`.
 
@@ -34,6 +34,8 @@ MSVC:
 
 - `debug`: `/Od /Zi /W4 /DDCR_DEBUG /Oy-`
 - `release`: `/O2 /DNDEBUG`
+
+Note: If custom `cflags` are set in `dcr.toml`, default profile flags are disabled to allow full control.
 
 ## Platform hint
 

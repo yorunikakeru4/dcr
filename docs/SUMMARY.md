@@ -25,6 +25,7 @@
 * [dcr run](commands/dcr-run.md)
 * [dcr clean](commands/dcr-clean.md)
 * [dcr gen](commands/dcr-gen.md)
+* [dcr test](commands/dcr-test.md)
 
 ## Dependencies & Build
 
@@ -32,6 +33,7 @@
 * [Local dependencies](dependencies-and-build/local-dependencies.md)
 * [Versioning & lock file](dependencies-and-build/versioning-and-lock-file.md)
 * [Target directory](dependencies-and-build/target-directory.md)
+* [Cross-compilation and targets](dependencies-and-build/cross-compilation.md)
 * [Compilers & linking](dependencies-and-build/compilers-and-linking.md)
 
 ## Reference & Help

@@ -8,6 +8,7 @@ Builds the project and runs the resulting binary.
 dcr run
 dcr run --debug
 dcr run --release
+dcr run --target linux --release
 dcr run --release --force
 dcr run --debug --clean
 ```
@@ -24,6 +25,7 @@ dcr run --debug --clean
 
 - If `build.kind = "staticlib"` or `build.kind = "sharedlib"`, `run` exits with error.
 - The profile is selected from the first argument.
+- `--target <triple>` runs the binary for specified target (short names: `linux`, `macos`, `windows`).
 - `--force` skips build cache checks and recompiles.
 - `--clean` removes `target/<profile>` and `build.clean` paths before building.
 

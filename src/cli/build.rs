@@ -6,7 +6,7 @@ use crate::core::config::Config;
 use crate::core::deps::resolve_deps;
 use crate::core::workspace::parse_workspace;
 use crate::utils::fs::{check_dir, find_project_root};
-use crate::utils::log::error;
+use crate::utils::log::{error, warn};
 use crate::utils::text::{BOLD_GREEN, colored};
 use glob::glob;
 use sha2::{Digest, Sha256};
@@ -43,7 +43,7 @@ pub fn build(args: &[String]) -> i32 {
         let _ = clean(&clean_args);
     }
     match with_dir(&root, || {
-        build_from_root(&root, &flags.profile, flags.force)
+        build_from_root(&root, &flags.profile, flags.target.as_deref(), flags.force)
     }) {
         Ok(()) => 0,
         Err(msg) => {
@@ -126,18 +126,41 @@ fn profile_table<'a>(config: &'a Config, profile: &str) -> Option<&'a toml::valu
         .and_then(|v| v.as_table())
 }
 
-fn get_string_with_profile(config: &Config, field: &str, profile: &str) -> String {
-    let base = get_config_str(config, &format!("build.{field}"));
-    let Some(table) = profile_table(config, profile) else {
-        return base;
-    };
-    let value = table.get(field).and_then(|v| v.as_str()).unwrap_or("");
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        base
-    } else {
-        trimmed.to_string()
+fn get_config_value_raw(config: &Config, section: &str, field: &str, profile: &str, target: Option<&str>) -> Option<toml::Value> {
+    // Order: target.profile, profile.target, target, profile, base
+    let keys = [
+        target.map(|t| format!("{}.{}.{}.{}", section, normalize_target_os(t), profile, field)),
+        target.map(|t| format!("{}.{}.{}.{}", section, profile, normalize_target_os(t), field)),
+        target.map(|t| format!("{}.{}.{}", section, normalize_target_os(t), field)),
+        Some(format!("{}.{}.{}", section, profile, field)),
+        Some(format!("{}.{}", section, field)),
+    ];
+    for key in keys.into_iter().flatten() {
+        if let Some(val) = config.get(&key) {
+            return Some(val.clone());
+        }
     }
+    None
+}
+
+fn get_inherit(config: &Config, section: &str, profile: &str, target: Option<&str>) -> bool {
+    get_config_value_raw(config, section, "inherit", profile, target).and_then(|v| v.as_bool()).unwrap_or(true)
+}
+
+fn get_config_value(config: &Config, section: &str, field: &str, profile: &str, target: Option<&str>) -> Option<String> {
+    get_config_value_raw(config, section, field, profile, target).and_then(|v| v.as_str().map(|s| s.trim().to_string())).filter(|s| !s.is_empty())
+}
+
+fn get_string_with_profile_and_target(config: &Config, field: &str, profile: &str, target: Option<&str>) -> String {
+    if get_inherit(config, "build", profile, target) {
+        get_config_value(config, "build", field, profile, target).unwrap_or_else(|| get_config_str(config, &format!("build.{field}")))
+    } else {
+        get_config_value(config, "build", field, profile, target).unwrap_or_default()
+    }
+}
+
+fn get_string_with_profile(config: &Config, field: &str, profile: &str) -> String {
+    get_string_with_profile_and_target(config, field, profile, None)
 }
 
 fn parse_string_array(value: &toml::Value, key: &str) -> Result<Vec<String>, String> {
@@ -154,19 +177,73 @@ fn parse_string_array(value: &toml::Value, key: &str) -> Result<Vec<String>, Str
     Ok(out)
 }
 
+fn get_list_with_profile_and_target(
+    config: &Config,
+    field: &str,
+    profile: &str,
+    target: Option<&str>,
+) -> Result<Vec<String>, String> {
+    let inherit = get_inherit(config, "build", profile, target);
+    let mut out = if inherit {
+        get_config_list(config, &format!("build.{field}"))?
+    } else {
+        Vec::new()
+    };
+    // Custom from target/profile
+    if let Some(val) = get_config_value_raw(config, "build", field, profile, target) {
+        if let Some(_arr) = val.as_array() {
+            let custom = parse_string_array(&val, &format!("build.{field}"))?;
+            if inherit {
+                out.extend(custom);
+            } else {
+                out = custom;
+            }
+        }
+    } else if inherit {
+        // Legacy append
+        if let Some(table) = profile_table(config, profile)
+            && let Some(value) = table.get(field)
+        {
+            let mut extra = parse_string_array(value, &format!("build.{profile}.{field}"))?;
+            out.append(&mut extra);
+        }
+        if let Some(t) = target {
+            let normalized_t = normalize_target_os(t);
+            if let Some(table) = profile_table(config, normalized_t)
+                && let Some(value) = table.get(field)
+            {
+                let mut extra = parse_string_array(value, &format!("build.{normalized_t}.{field}"))?;
+                out.append(&mut extra);
+            }
+        }
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_normalize_target_os() {
+        assert_eq!(super::normalize_target_os("linux"), "x86_64-unknown-linux-gnu");
+        assert_eq!(super::normalize_target_os("macos"), "x86_64-apple-darwin");
+        assert_eq!(super::normalize_target_os("windows"), "x86_64-pc-windows-msvc");
+        assert_eq!(super::normalize_target_os("x86_64-unknown-linux-gnu"), "x86_64-unknown-linux-gnu");
+        assert_eq!(super::normalize_target_os("unknown"), "unknown");
+    }
+}
+
+
+
 fn get_list_with_profile(
     config: &Config,
     field: &str,
     profile: &str,
 ) -> Result<Vec<String>, String> {
-    let mut out = get_config_list(config, &format!("build.{field}"))?;
-    if let Some(table) = profile_table(config, profile)
-        && let Some(value) = table.get(field)
-    {
-        let mut extra = parse_string_array(value, &format!("build.{profile}.{field}"))?;
-        out.append(&mut extra);
-    }
-    Ok(out)
+    get_list_with_profile_and_target(config, field, profile, None)
+}
+
+fn get_targets(config: &Config, profile: &str) -> Result<Vec<String>, String> {
+    get_list_with_profile(config, "targets", profile)
 }
 
 fn get_bool_with_profile(config: &Config, field: &str, profile: &str, default: bool) -> bool {
@@ -274,16 +351,17 @@ fn get_build_steps_with_profile(
     get_build_steps(config, &format!("build.{field}"))
 }
 
-fn ensure_target_dirs(items: &[String], profile: &str, target_dir: Option<&str>) {
-    if let Some(dir) = target_dir {
-        let _ = fs::create_dir_all(dir);
-    }
+fn ensure_target_dirs(items: &[String], profile: &str, target_dir: Option<String>) {
     if !items.contains(&"target".to_string()) {
         let _ = fs::create_dir("./target");
     }
-    let target_items = check_dir(Some("target")).unwrap_or_default();
-    if !target_items.contains(&profile.to_string()) {
-        let _ = fs::create_dir(format!("./target/{profile}"));
+    if let Some(dir) = &target_dir {
+        let _ = fs::create_dir_all(dir);
+    } else {
+        let target_items = check_dir(Some("target")).unwrap_or_default();
+        if !target_items.contains(&profile.to_string()) {
+            let _ = fs::create_dir(format!("./target/{profile}"));
+        }
     }
 }
 
@@ -302,29 +380,49 @@ fn run_build(ctx: &BuildContext) -> Result<f64, String> {
     }
 }
 
-fn build_from_root(root: &Path, profile: &str, force: bool) -> Result<(), String> {
+#[allow(unused_variables)]
+fn build_from_root(root: &Path, profile: &str, target: Option<&str>, force: bool) -> Result<(), String> {
     let config = Config::open("./dcr.toml").map_err(|err| err.to_string())?;
     let project_name = get_config_str(&config, "package.name");
+    let project_version = get_config_str(&config, "package.version");
+
+    let targets_to_build: Vec<Option<String>> = if let Some(t) = target {
+        vec![Some(normalize_target_os(t).to_string())]
+    } else {
+        let config_targets = get_targets(&config, profile)?;
+        if config_targets.is_empty() {
+            vec![None]
+        } else {
+            config_targets.into_iter().map(|t| Some(normalize_target_os(&t).to_string())).collect()
+        }
+    };
+
     let start_time = Instant::now();
-    println!(
-        "    Building project `{}`\n    Profile: {}",
-        colored(&project_name, BOLD_GREEN),
-        colored(profile, BOLD_GREEN)
-    );
-    if let Some(workspace) = parse_workspace(&config, root)? {
-        build_workspace(&workspace, profile, force)?;
-        let excludes: Vec<std::path::PathBuf> =
-            workspace.members.iter().map(|m| m.path.clone()).collect();
-        build_project_at(root, profile, &excludes, force)?;
-        let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
-        println!(
-            "    {} Build completed successfully in {} seconds",
-            colored("✔", BOLD_GREEN),
-            colored(&elapsed.to_string(), BOLD_GREEN)
-        );
-        return Ok(());
+    for (i, build_target) in targets_to_build.iter().enumerate() {
+        if targets_to_build.len() > 1 {
+            println!(
+                "    Building target {} of {}: {}",
+                i + 1,
+                targets_to_build.len(),
+                build_target.as_ref().map_or("native", |t| t.as_str())
+            );
+        } else {
+            println!(
+                "    Building project `{}`\n    Profile: {}\n    Target: {}",
+                colored(&project_name, BOLD_GREEN),
+                colored(profile, BOLD_GREEN),
+                colored(build_target.as_ref().map_or("native", |t| t.as_str()), BOLD_GREEN)
+            );
+        }
+        if let Some(workspace) = parse_workspace(&config, profile, build_target.as_deref(), root)? {
+            build_workspace(&workspace, profile, build_target.as_deref(), force)?;
+            let excludes: Vec<std::path::PathBuf> =
+                workspace.members.iter().map(|m| m.path.clone()).collect();
+            build_project_at(root, profile, build_target.as_deref(), &excludes, force)?;
+        } else {
+            build_project_at(root, profile, build_target.as_deref(), &[], force)?;
+        }
     }
-    build_project_at(root, profile, &[], force)?;
     let elapsed = ((start_time.elapsed().as_secs_f64() * 100.0).trunc()) / 100.0;
     println!(
         "    {} Build completed successfully in {} seconds",
@@ -337,10 +435,11 @@ fn build_from_root(root: &Path, profile: &str, force: bool) -> Result<(), String
 fn build_workspace(
     workspace: &crate::core::workspace::Workspace,
     profile: &str,
+    target: Option<&str>,
     force: bool,
 ) -> Result<(), String> {
     for member in &workspace.members {
-        build_project_at(&member.path, profile, &[], force)?;
+        build_project_at(&member.path, profile, target, &[], force)?;
     }
     Ok(())
 }
@@ -348,6 +447,7 @@ fn build_workspace(
 fn build_project_at(
     project_root: &Path,
     profile: &str,
+    target: Option<&str>,
     exclude_dirs: &[std::path::PathBuf],
     force: bool,
 ) -> Result<(), String> {
@@ -358,30 +458,31 @@ fn build_project_at(
         }
         let config = Config::open("./dcr.toml").map_err(|err| err.to_string())?;
         let project_name = get_config_str(&config, "package.name");
-        let project_version = get_config_str(&config, "package.version");
-        let project_compiler = get_string_with_profile(&config, "compiler", profile);
+    let project_version = get_config_str(&config, "package.version");
+        let build_target_config = get_string_with_profile(&config, "target", profile);
+        let build_target = target.or(if build_target_config.is_empty() { None } else { Some(build_target_config.as_str()) });
+        let project_compiler = get_string_with_profile_and_target(&config, "compiler", profile, build_target);
         let build_language = get_language_with_profile(&config, profile)?;
-        let build_standard = get_string_with_profile(&config, "standard", profile);
-        let build_target = get_string_with_profile(&config, "target", profile);
-        let build_kind = get_string_with_profile(&config, "kind", profile);
-        let build_platform = get_string_with_profile(&config, "platform", profile);
-        let tc_cc = get_config_opt(&config, "toolchain.cc");
-        let tc_cxx = get_config_opt(&config, "toolchain.cxx");
-        let tc_as = get_config_opt(&config, "toolchain.as");
-        let tc_ar = get_config_opt(&config, "toolchain.ar");
-        let tc_ld = get_config_opt(&config, "toolchain.ld");
-        let tc_uic = get_config_opt(&config, "toolchain.uic");
-        let tc_moc = get_config_opt(&config, "toolchain.moc");
-        let tc_rcc = get_config_opt(&config, "toolchain.rcc");
-        let build_cflags = get_list_with_profile(&config, "cflags", profile)?;
-        let build_ldflags = get_list_with_profile(&config, "ldflags", profile)?;
-        let build_excludes = get_list_with_profile(&config, "exclude", profile)?;
-        let build_includes = get_list_with_profile(&config, "include", profile)?;
-        let build_roots = get_list_with_profile(&config, "roots", profile)?;
+        let build_standard = get_string_with_profile_and_target(&config, "standard", profile, build_target);
+        let build_kind = get_string_with_profile_and_target(&config, "kind", profile, build_target);
+        let build_platform = get_string_with_profile_and_target(&config, "platform", profile, build_target);
+        let tc_cc = get_config_value(&config, "toolchain", "cc", profile, build_target).or_else(|| get_config_opt(&config, "toolchain.cc"));
+        let tc_cxx = get_config_value(&config, "toolchain", "cxx", profile, build_target).or_else(|| get_config_opt(&config, "toolchain.cxx"));
+        let tc_as = get_config_value(&config, "toolchain", "as", profile, build_target).or_else(|| get_config_opt(&config, "toolchain.as"));
+        let tc_ar = get_config_value(&config, "toolchain", "ar", profile, build_target).or_else(|| get_config_opt(&config, "toolchain.ar"));
+        let tc_ld = get_config_value(&config, "toolchain", "ld", profile, build_target).or_else(|| get_config_opt(&config, "toolchain.ld"));
+        let tc_uic = get_config_value(&config, "toolchain", "uic", profile, build_target).or_else(|| get_config_opt(&config, "toolchain.uic"));
+        let tc_moc = get_config_value(&config, "toolchain", "moc", profile, build_target).or_else(|| get_config_opt(&config, "toolchain.moc"));
+        let tc_rcc = get_config_value(&config, "toolchain", "rcc", profile, build_target).or_else(|| get_config_opt(&config, "toolchain.rcc"));
+        let build_cflags = get_list_with_profile_and_target(&config, "cflags", profile, build_target)?;
+        let build_ldflags = get_list_with_profile_and_target(&config, "ldflags", profile, build_target)?;
+        let build_excludes = get_list_with_profile_and_target(&config, "exclude", profile, build_target)?;
+        let build_includes = get_list_with_profile_and_target(&config, "include", profile, build_target)?;
+        let build_roots = get_list_with_profile_and_target(&config, "roots", profile, build_target)?;
         let src_disable = get_bool_with_profile(&config, "src_disable", profile, false);
-        let build_expects = get_list_with_profile(&config, "expect", profile)?;
-        let pkg_configs = get_list_with_profile(&config, "pkg_config", profile)?;
-        let build_generated = get_list_with_profile(&config, "generated", profile)?;
+        let build_expects = get_list_with_profile_and_target(&config, "expect", profile, build_target)?;
+        let pkg_configs = get_list_with_profile_and_target(&config, "pkg_config", profile, build_target)?;
+        let build_generated = get_list_with_profile_and_target(&config, "generated", profile, build_target)?;
         let build_steps = get_build_steps_with_profile(&config, "steps", profile)?;
         let build_post_steps = get_build_steps_with_profile(&config, "post_steps", profile)?;
 
@@ -395,9 +496,10 @@ fn build_project_at(
         let resolved_linker = resolve_tool("DCR_LD", tc_ld.as_deref());
         let resolved_archiver = resolve_tool("DCR_AR", tc_ar.as_deref());
 
-        ensure_target_dirs(&items, profile, normalize_target(&build_target));
+        let target_dir = build_target.map(|t| format!("target/{t}/{profile}"));
+        ensure_target_dirs(&items, profile, target_dir);
 
-        let resolved = resolve_deps(&config, profile, project_root)?;
+        let resolved = resolve_deps(&config, profile, build_target, project_root)?;
         let (resolved_cflags, resolved_ldflags) =
             resolve_pkg_config_flags(&pkg_configs, &build_cflags, &build_ldflags)?;
         let mut combined_excludes = Vec::new();
@@ -466,13 +568,15 @@ fn build_project_at(
             }
         }
 
+        let target_dir_binding = normalize_target(build_target.unwrap_or(""), profile);
         let ctx = BuildContext {
             profile,
             project_name: &project_name,
             compiler: &resolved_compiler,
             language: &build_language,
             standard: &build_standard,
-            target_dir: normalize_target(&build_target),
+            target: build_target,
+            target_dir: target_dir_binding.as_deref(),
             kind: normalize_kind(&build_kind),
             platform: normalize_platform(&build_platform),
             linker: resolved_linker.as_deref(),
@@ -556,12 +660,25 @@ where
     result
 }
 
-fn normalize_target(target: &str) -> Option<&str> {
-    let trimmed = target.trim();
+pub fn normalize_target_os(target: &str) -> &str {
+    match target {
+        "linux" => "x86_64-unknown-linux-gnu",
+        "macos" => "x86_64-apple-darwin",
+        "windows" => "x86_64-pc-windows-msvc",
+        _ if target.contains('-') => target, // Assume valid triple
+        _ => {
+            warn(&format!("Unknown target '{}', using as-is. Supported short names: linux, macos, windows", target));
+            target
+        }
+    }
+}
+
+fn normalize_target(target: &str, profile: &str) -> Option<String> {
+    let trimmed = normalize_target_os(target.trim());
     if trimmed.is_empty() {
         None
     } else {
-        Some(trimmed)
+        Some(format!("target/{trimmed}/{profile}"))
     }
 }
 

@@ -19,6 +19,8 @@ The current implementation is written in Rust.
 - Build static and shared libraries
 - ASM projects with NASM/GAS or via GCC/Clang
 - Mixed language projects (`language = ["c", "asm"]` and similar)
+- Cross-compilation with `--target` (short names: `linux`, `macos`, `windows`)
+- Target-specific configurations and inheritance
 - Update the binary via `dcr --update` (GitHub Releases, not for pacman/AUR installs)
 
 ## Supported Platforms
@@ -119,6 +121,16 @@ Run manually:
 Removes the `target` directory in the project root.
 Use `dcr clean --all` in a workspace root to clean all member projects.
 
+### `dcr gen`
+Generates IDE integration files and build tools.
+- `dcr gen vscode`: VS Code workspace config
+- `dcr gen clion`: CLion project files
+- `dcr gen compile-commands`: `compile_commands.json` for clang tools
+
+### `dcr test`
+Runs the test suite.
+Use `dcr test --init` to create test files.
+
 ## Build Profiles
 Two profiles are supported:
 - `--debug` (default) - built-in flags per compiler
@@ -135,6 +147,33 @@ Use `build.exclude`/`build.include` to control source/header collection.
 Use `build.roots` and `build.src_disable` to replace the default `src/` root.
 Use `build.steps` and `build.post_steps` to run custom commands.
 Use `build.clean` for extra cleanup paths and `[run].cmd` to override run command.
+
+## Cross-compilation
+
+DCR supports cross-compilation via `--target <triple>` or short names:
+
+```sh
+dcr build --target linux --release    # x86_64-unknown-linux-gnu
+dcr build --target macos --release    # x86_64-apple-darwin
+dcr build --target windows --release  # x86_64-pc-windows-msvc
+dcr run --target aarch64-linux-gnu
+```
+
+Configure multiple targets and target-specific settings in `dcr.toml`:
+
+```toml
+[build.targets]
+targets = ["linux", "windows"]
+
+[build.linux]
+compiler = "gcc"
+cflags = ["-O2"]
+
+[build.windows]
+compiler = "x86_64-w64-mingw32-gcc"
+```
+
+See [Cross-compilation guide](docs/dependencies-and-build/cross-compilation.md) for details.
 
 ## Configuration
 The main project file is `dcr.toml`.

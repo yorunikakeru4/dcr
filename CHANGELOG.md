@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.5.0] - 2026-04-10
+
+Added:
+
+- Full inheritance system for all config sections: `build`, `toolchain`, `run`, `workspace`, `dependencies`
+  - Order: `section.target.profile` → `section.profile.target` → `section.target` → `section.profile` → `section`
+  - `inherit = false` to disable inheritance completely
+  - Target-specific overrides: `[build.linux]`, `[toolchain.windows]`, `[run.macos]`, etc.
+- Cross-compilation support with `--target <triple>`
+  - Full target triples and short names (`linux`, `macos`, `windows`)
+  - Target-specific config sections: `[build.<target>]`, `[toolchain.<target>]`, `[run.<target>]`
+- Workspace and dependencies support target/profile inheritance
+- Multiple targets build: `[build.targets]` to build for multiple targets simultaneously
+- Target directory structure: `target/<target>/<profile>/` (native or triple)
+- Updated documentation with cross-compilation guide and Arch Linux examples
+
+## [0.4.0] - 2026-04-10
+
+Added:
+
+- Test command: `dcr test` and `dcr tests`
+  - Automatic compilation and linking for tests without manual configuration
+  - `dcr test --init` creates test template and header
+  - Test framework with EXPECT/SKIP macros in `dcr_test.h`
+- Improved test integration: added test CLI module and basic test suite
+- Documentation updates for testing functionality
+
 ## [0.3.0] - 2026-03-18
 
 Added:

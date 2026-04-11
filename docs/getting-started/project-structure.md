@@ -31,10 +31,10 @@ project/
 - `dcr.toml`: main project configuration.
 - `dcr.lock`: generated lock file for resolved path dependencies.
 - `src/`: recursively scanned source directory.
-- `target/<profile>/obj/`: cached object files for incremental rebuild.
-- `target/<profile>/deps/`: synchronized copies of path dependencies.
-- `target/<profile>/<name>` (or `.exe` on Windows): output for `kind = "bin"`.
-- `target/<profile>/lib<name>.a` (or `<name>.lib` on Windows): output for `kind = "staticlib"`.
-- `target/<profile>/lib<name>.so` (or `.dylib` on macOS, `<name>.dll` on Windows): output for `kind = "sharedlib"`.
+- `target/<target>/<profile>/obj/`: cached object files for incremental rebuild (where `<target>` is `native` or target triple).
+- `target/<target>/<profile>/deps/`: synchronized copies of path dependencies.
+- `target/<target>/<profile>/<name>` (or `.exe` on Windows): output for `kind = "bin"`.
+- `target/<target>/<profile>/lib<name>.a` (or `<name>.lib` on Windows): output for `kind = "staticlib"`.
+- `target/<target>/<profile>/lib<name>.so` (or `.dylib` on macOS, `<name>.dll` on Windows): output for `kind = "sharedlib"`.
 
-If `build.target` is set, the final artifact is written to that custom directory, while object cache still stays in `target/<profile>/obj`.
+If `build.target` is set, the final artifact is written to that custom directory, while object cache still stays in `target/<target>/<profile>/obj`.

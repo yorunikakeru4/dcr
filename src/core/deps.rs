@@ -23,6 +23,7 @@ pub struct ResolvedDeps {
 pub fn resolve_deps(
     config: &Config,
     profile: &str,
+    target: Option<&str>,
     project_root: &Path,
 ) -> Result<ResolvedDeps, String> {
     let project_name = config
@@ -35,7 +36,7 @@ pub fn resolve_deps(
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let deps = parse_dependencies(config)?;
+    let deps = parse_dependencies(config, profile, target)?;
     if deps.is_empty() {
         return Ok(ResolvedDeps {
             include_dirs: Vec::new(),
@@ -124,14 +125,38 @@ struct DepLock {
     source: String,
 }
 
-fn parse_dependencies(config: &Config) -> Result<Vec<DepSpec>, String> {
-    let deps_val = match config.get("dependencies") {
-        Some(v) => v,
+fn parse_dependencies(
+    config: &Config,
+    profile: &str,
+    target: Option<&str>,
+) -> Result<Vec<DepSpec>, String> {
+    let mut deps_table = None;
+    // Order: dependencies.target.profile, dependencies.profile.target, dependencies.target, dependencies.profile, dependencies
+    let combinations = if let Some(t) = target {
+        let normalized_t = crate::cli::build::normalize_target_os(t);
+        vec![
+            format!("dependencies.{}.{}", normalized_t, profile),
+            format!("dependencies.{}.{}", profile, normalized_t),
+            format!("dependencies.{}", normalized_t),
+            format!("dependencies.{}", profile),
+            "dependencies".to_string(),
+        ]
+    } else {
+        vec![
+            format!("dependencies.{}", profile),
+            "dependencies".to_string(),
+        ]
+    };
+    for key in combinations {
+        if let Some(val) = config.get(&key).and_then(|v| v.as_table()) {
+            deps_table = Some(val);
+            break;
+        }
+    }
+    let deps_table = match deps_table {
+        Some(t) => t,
         None => return Ok(Vec::new()),
     };
-    let deps_table = deps_val
-        .as_table()
-        .ok_or_else(|| "dependencies is not a table".to_string())?;
     let mut deps = Vec::new();
     for (name, value) in deps_table {
         match value {
