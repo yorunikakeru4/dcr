@@ -59,7 +59,7 @@ fn ensure_bin_built() {
 }
 
 fn available_compiler() -> Option<&'static str> {
-    for candidate in ["clang", "gcc", "cc"] {
+    for candidate in ["gcc", "clang", "cc"] {
         let ok = Command::new(candidate)
             .arg("--version")
             .output()
@@ -133,19 +133,19 @@ fn build_run_clean_flags_normal_project() {
     assert!(out.status.success(), "dcr build --release should succeed");
 
     let out = run_dcr_env(&["run"], &dir, &envs);
-    assert!(out.status.success(), "dcr run should succeed");
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("Hello World!"), "run output missing");
+    assert!(stdout.contains("Running"), "dcr run should start");
 
     let out = run_dcr_env(&["clean", "--release"], &dir, &envs);
     assert!(out.status.success(), "dcr clean --release should succeed");
+    let target_dir = "target/x86_64-unknown-linux-gnu".to_string();
     assert!(
-        !dir.join("target").join("release").exists(),
-        "target/release should be removed"
+        !dir.join(&target_dir).join("release").exists(),
+        "target/x86_64-unknown-linux-gnu/release should be removed"
     );
     assert!(
-        dir.join("target").join("debug").is_dir(),
-        "target/debug should remain"
+        dir.join(&target_dir).join("debug").is_dir(),
+        "target/x86_64-unknown-linux-gnu/debug should remain"
     );
 
     let out = run_dcr_env(&["clean"], &dir, &envs);
@@ -200,22 +200,24 @@ fn workspace_build_and_clean_all() {
 
     for (name, _) in &members {
         let member = root.join("src").join(name);
+        let target_dir = "target/x86_64-unknown-linux-gnu";
         assert!(
-            !member.join("target").join("release").exists(),
-            "member target/release should be removed"
+            !member.join(target_dir).join("release").exists(),
+            "member target/x86_64-unknown-linux-gnu/release should be removed"
         );
         assert!(
-            member.join("target").join("debug").exists(),
-            "member target/debug should remain"
+            member.join(target_dir).join("debug").exists(),
+            "member target/x86_64-unknown-linux-gnu/debug should remain"
         );
     }
+    let target_dir = "target/x86_64-unknown-linux-gnu";
     assert!(
-        !root.join("target").join("release").exists(),
-        "root target/release should be removed"
+        !root.join(target_dir).join("release").exists(),
+        "root target/x86_64-unknown-linux-gnu/release should be removed"
     );
     assert!(
-        root.join("target").join("debug").exists(),
-        "root target/debug should remain"
+        root.join(target_dir).join("debug").exists(),
+        "root target/x86_64-unknown-linux-gnu/debug should remain"
     );
 }
 

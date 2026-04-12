@@ -199,22 +199,25 @@ fn clean_specific_profile() {
     let out = run_dcr(&["init"], &dir);
     assert!(out.status.success(), "init should succeed");
 
-    // Create target/debug and target/release dirs
-    std::fs::create_dir_all(dir.join("target").join("debug")).expect("create debug");
-    std::fs::write(dir.join("target").join("debug").join("dummy.o"), "x").expect("write");
-    std::fs::create_dir_all(dir.join("target").join("release")).expect("create release");
-    std::fs::write(dir.join("target").join("release").join("dummy.o"), "x").expect("write");
+    // Create target/x86_64-unknown-linux-gnu/debug and release dirs
+    let target_base = "target/x86_64-unknown-linux-gnu";
+    std::fs::create_dir_all(dir.join(target_base).join("debug")).expect("create debug");
+    std::fs::write(dir.join(target_base).join("debug").join("dummy.o"), "x").expect("write");
+    std::fs::create_dir_all(dir.join(target_base).join("release")).expect("create release");
+    std::fs::write(dir.join(target_base).join("release").join("dummy.o"), "x").expect("write");
 
     // Clean only release
     let out = run_dcr(&["clean", "--release"], &dir);
     assert!(out.status.success(), "clean --release should succeed");
     assert!(
-        !dir.join("target").join("release").exists(),
-        "target/release should be removed"
+        !dir.join(target_base).join("release").exists(),
+        "target/x86_64-unknown-linux-gnu/release should be removed"
     );
     assert!(
-        dir.join("target").join("debug").is_dir(),
-        "target/debug should remain"
+        dir.join("target/x86_64-unknown-linux-gnu")
+            .join("debug")
+            .is_dir(),
+        "target/x86_64-unknown-linux-gnu/debug should remain"
     );
 }
 
@@ -249,7 +252,10 @@ fn staticlib_build() {
     let out = run_dcr_env(&["build"], &dir, &envs);
     assert!(out.status.success(), "staticlib build should succeed");
     // Check that a .a file exists
-    let lib_path = dir.join("target").join("debug");
+    let lib_path = dir
+        .join("target")
+        .join("x86_64-unknown-linux-gnu")
+        .join("debug");
     let has_lib = std::fs::read_dir(&lib_path)
         .map(|entries| {
             entries

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.1] - 2026-04-12
+
+Fixed:
+
+- Windows compatibility for target-specific config without --target flag
+
+Added:
+
+- Default host target detection for automatic target overrides
+- Unit tests for target normalization
+
+Improved:
+
+- Config value lookup optimization
+- Documentation for Windows cross-compilation
+
 ## [0.5.0] - 2026-04-10
 
 Added:

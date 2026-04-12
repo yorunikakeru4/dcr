@@ -46,15 +46,26 @@ pub fn clean(args: &[String]) -> i32 {
 
 struct CleanFlags {
     profile: Option<String>,
+    target: Option<String>,
     all: bool,
 }
 
 fn parse_clean_flags(args: &[String]) -> Result<CleanFlags, String> {
     let mut profile: Option<String> = None;
+    let mut target: Option<String> = None;
     let mut all = false;
-    for arg in args {
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
         if arg == "--all" {
             all = true;
+            continue;
+        }
+        if arg == "--target" {
+            if let Some(t) = iter.next() {
+                target = Some(t.clone());
+            } else {
+                return Err("--target requires a value".to_string());
+            }
             continue;
         }
         if arg.starts_with("--") {
@@ -69,27 +80,48 @@ fn parse_clean_flags(args: &[String]) -> Result<CleanFlags, String> {
         }
         return Err("Unknown argument".to_string());
     }
-    Ok(CleanFlags { profile, all })
+    Ok(CleanFlags {
+        profile,
+        target,
+        all,
+    })
 }
 
 fn clean_from_root(root: &Path, flags: &CleanFlags) -> Result<(), String> {
     let config = Config::open("./dcr.toml").map_err(|err| err.to_string())?;
+
+    let target = flags.target.clone().or_else(|| {
+        Some(if cfg!(target_os = "linux") {
+            "x86_64-unknown-linux-gnu".to_string()
+        } else if cfg!(target_os = "macos") {
+            "x86_64-apple-darwin".to_string()
+        } else if cfg!(target_os = "windows") {
+            "x86_64-pc-windows-msvc".to_string()
+        } else {
+            "unknown".to_string()
+        })
+    });
+
     if flags.all
         && let Some(workspace) = parse_workspace(
             &config,
             flags.profile.as_deref().unwrap_or("debug"),
-            None,
+            target.as_deref(),
             root,
         )?
     {
         for member in &workspace.members {
-            clean_project_at(&member.path, flags.profile.as_deref())?;
+            clean_project_at(&member.path, flags.profile.as_deref(), target.as_deref())?;
         }
     }
-    clean_project_at(root, flags.profile.as_deref())
+    clean_project_at(root, flags.profile.as_deref(), target.as_deref())
 }
 
-fn clean_project_at(project_root: &Path, profile: Option<&str>) -> Result<(), String> {
+fn clean_project_at(
+    project_root: &Path,
+    profile: Option<&str>,
+    target: Option<&str>,
+) -> Result<(), String> {
     with_dir(project_root, || {
         let config = Config::open("./dcr.toml").map_err(|err| err.to_string())?;
         let project_name = std::env::current_dir()
@@ -105,15 +137,30 @@ fn clean_project_at(project_root: &Path, profile: Option<&str>) -> Result<(), St
             colored(&project_name, BOLD_GREEN)
         );
         if let Some(profile) = profile {
+            let target_dir = if let Some(t) = target {
+                format!("target/{t}/{profile}")
+            } else {
+                format!("target/{profile}")
+            };
             let target_items = check_dir(Some("target")).unwrap_or_default();
-            if !target_items.contains(&profile.to_string()) {
-                warn(&format!("Directory target/{profile} not found"));
+            let parent_dir = target.unwrap_or("");
+            let dir_exists = if target.is_some() {
+                target_items.contains(&parent_dir.to_string())
+            } else {
+                target_items.contains(&profile.to_string())
+            };
+            if !dir_exists {
+                warn(&format!("Directory target/{} not found", target_dir));
             } else {
                 println!("    Profile: {}", colored(profile, BOLD_GREEN));
-                let _ = fs::remove_dir_all(format!("target/{profile}"));
+                if let Some(t) = target {
+                    println!("    Target: {}", colored(t, BOLD_GREEN));
+                }
+                let _ = fs::remove_dir_all(&target_dir);
                 println!(
-                    "{} Removed directory target/{profile}",
-                    colored("\n    ✔", BOLD_GREEN)
+                    "{} Removed directory {}",
+                    colored("\n    ✔", BOLD_GREEN),
+                    target_dir
                 );
             }
             clean_custom_paths(&config, profile)?;

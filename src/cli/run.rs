@@ -87,10 +87,29 @@ pub fn run(args: &[String]) -> i32 {
         .map(|s| s.trim())
         .filter(|s| !s.is_empty());
 
-    let flags = match parse_build_run_flags(args) {
+    let mut flags = match parse_build_run_flags(args) {
         Ok(v) => v,
         Err(_) => return 1,
     };
+
+    // If no target specified, use default host target for target-specific config
+    if flags.target.is_none() {
+        let default_target = if cfg!(target_os = "linux") {
+            "x86_64-unknown-linux-gnu"
+        } else if cfg!(target_os = "macos") {
+            "x86_64-apple-darwin"
+        } else if cfg!(target_os = "windows") {
+            "x86_64-pc-windows-msvc"
+        } else {
+            "unknown"
+        };
+        flags.target = Some(default_target.to_string());
+    }
+
+    let normalized_target_dir = flags
+        .target
+        .as_ref()
+        .and_then(|t| crate::cli::build::normalize_target(t, &flags.profile));
 
     let version = config
         .get("package.version")
@@ -104,7 +123,11 @@ pub fn run(args: &[String]) -> i32 {
         return 1;
     }
     let build_status = build(args);
-    let bin_path = crate::platform::bin_path(&flags.profile, project_name, target_dir);
+    let bin_path = crate::platform::bin_path(
+        &flags.profile,
+        project_name,
+        normalized_target_dir.as_deref(),
+    );
     if build_status == 0 {
         if let Some(cmd) = run_cmd {
             println!("\n    {} {}", colored("Running", BOLD_GREEN), cmd);
