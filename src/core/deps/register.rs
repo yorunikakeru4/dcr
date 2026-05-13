@@ -38,7 +38,7 @@ pub fn get_index_path() -> PathBuf {
 pub fn resolve_package_from_registry(name: &str) -> Result<JsonValue, String> {
     let config = get_registry_config().ok_or("No registry config found")?;
     let mut registries: Vec<(&String, &Registry)> = config.registry.iter().collect();
-    registries.sort_by(|a, b| b.1.priority.cmp(&a.1.priority));
+    registries.sort_by_key(|b| std::cmp::Reverse(b.1.priority));
 
     for (_name_reg, _reg) in registries {
         let index_path = get_index_path();
