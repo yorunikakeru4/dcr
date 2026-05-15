@@ -57,17 +57,15 @@ fn print_deps(
 
         if let Some(path) = &dep_path {
             let dcr_toml = path.join("dcr.toml");
-            if dcr_toml.exists() {
-                if let Ok(config) = Config::open(&dcr_toml.to_string_lossy()) {
-                    if let Some(v) = config.get("package.version").and_then(|v| v.as_str()) {
-                        version = format!(" v{}", v);
-                    }
-                    sub_deps = config
-                        .get("dependencies")
-                        .and_then(|v| v.as_table())
-                        .cloned();
-                    resolved_path = Some(path.clone());
+            if dcr_toml.exists() && let Ok(config) = Config::open(&dcr_toml.to_string_lossy()) {
+                if let Some(v) = config.get("package.version").and_then(|v| v.as_str()) {
+                    version = format!(" v{}", v);
                 }
+                sub_deps = config
+                    .get("dependencies")
+                    .and_then(|v| v.as_table())
+                    .cloned();
+                resolved_path = Some(path.clone());
             }
         }
 
@@ -91,35 +89,26 @@ fn print_deps(
 
         println!("{}{}{}{}", prefix, connector, name, version);
 
-        if let Some(s_deps) = sub_deps {
-            if !seen.contains(*name) {
-                seen.insert(name.to_string());
-                let new_prefix = format!("{}{}", prefix, child_prefix);
-                if let Some(path) = resolved_path {
-                    print_deps(&s_deps, &path, &new_prefix, seen);
-                }
-                seen.remove(*name);
+        if let Some(s_deps) = sub_deps && !seen.contains(*name) {
+            seen.insert(name.to_string());
+            let new_prefix = format!("{}{}", prefix, child_prefix);
+            if let Some(path) = resolved_path {
+                print_deps(&s_deps, &path, &new_prefix, seen);
             }
+            seen.remove(*name);
         }
     }
 }
 
 fn resolve_dep_path(value: &Value, base_path: &Path) -> Option<PathBuf> {
     match value {
-        Value::String(s) => {
-            if s.starts_with("path:") {
-                Some(base_path.join(&s[5..]))
-            } else {
-                None
-            }
-        }
-        Value::Table(t) => {
-            if let Some(path) = t.get("path").and_then(|v| v.as_str()) {
-                Some(base_path.join(path))
-            } else {
-                None
-            }
-        }
+        Value::String(s) => s
+            .strip_prefix("path:")
+            .map(|stripped| base_path.join(stripped)),
+        Value::Table(t) => t
+            .get("path")
+            .and_then(|v| v.as_str())
+            .map(|path| base_path.join(path)),
         _ => None,
     }
 }
