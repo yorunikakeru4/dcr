@@ -50,7 +50,15 @@ pub fn build(args: &[String]) -> i32 {
         Err(code) => return code,
     };
 
-    // If no target specified, use default host target for target-specific config
+    if flags.target.is_none() {
+        let config_path = root.join("dcr.toml");
+        if let Ok(config) = Config::open(config_path.to_str().unwrap()) {
+            let bt = get_build_string_with_profile(&config, "target", "debug");
+            if !bt.is_empty() {
+                flags.target = Some(bt);
+            }
+        }
+    }
     if flags.target.is_none() {
         let default_target = if cfg!(target_os = "linux") {
             "x86_64-unknown-linux-gnu"
@@ -490,10 +498,23 @@ fn build_project_at(
             .or_else(|| get_config_opt(&config, "toolchain.moc"));
         let tc_rcc = get_config_value(&config, "toolchain", "rcc", profile, build_target)
             .or_else(|| get_config_opt(&config, "toolchain.rcc"));
-        let build_cflags =
+        let mut build_cflags =
             get_list_with_profile_and_target(&config, "cflags", profile, build_target)?;
+        // Автоматически добавляем --target=..., если задан build.target и флаг ещё не указан
+        if let Some(t) = build_target {
+            if !t.trim().is_empty() {
+                let target_flag = format!("--target={}", t.trim());
+                if !build_cflags.iter().any(|f| f == &target_flag || f.starts_with("--target=")) {
+                    build_cflags.insert(0, target_flag);
+                }
+            }
+        }
         let build_ldflags =
             get_list_with_profile_and_target(&config, "ldflags", profile, build_target)?;
+
+        // Новые поля: filename и extension
+        let output_filename = get_string_with_profile_and_target(&config, "filename", profile, build_target);
+        let output_extension = get_string_with_profile_and_target(&config, "extension", profile, build_target);
         let build_excludes =
             get_list_with_profile_and_target(&config, "exclude", profile, build_target)?;
         let build_includes =
@@ -672,6 +693,8 @@ fn build_project_at(
             libs: &resolved.libs,
             cflags: &resolved_cflags,
             ldflags: &resolved_ldflags,
+            output_filename: if output_filename.is_empty() { None } else { Some(output_filename.as_str()) },
+            output_extension: if output_extension.is_empty() { None } else { Some(output_extension.as_str()) },
         };
         if std::env::var("DCR_DEBUG").is_ok() {
             eprintln!("[dcr] debug: compiler={}", ctx.compiler);
@@ -1265,13 +1288,23 @@ fn build_cache_path(profile: &str, target_dir: Option<&str>) -> std::path::PathB
 }
 
 fn build_output_path(ctx: &BuildContext) -> String {
+    let name = ctx.output_filename.unwrap_or(ctx.project_name);
+    let ext = ctx.output_extension.unwrap_or("");
+
+    let final_name = if ext.is_empty() {
+        name.to_string()
+    } else {
+        format!("{}.{}", name, ext)
+    };
+
     if ctx.kind == "staticlib" {
-        return crate::platform::lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
+        // Для библиотек добавляем lib префикс если нужно, но упростим
+        return crate::platform::lib_path(ctx.profile, &final_name, ctx.target_dir);
     }
     if ctx.kind == "sharedlib" {
-        return crate::platform::shared_lib_path(ctx.profile, ctx.project_name, ctx.target_dir);
+        return crate::platform::shared_lib_path(ctx.profile, &final_name, ctx.target_dir);
     }
-    crate::platform::bin_path(ctx.profile, ctx.project_name, ctx.target_dir)
+    crate::platform::bin_path(ctx.profile, &final_name, ctx.target_dir)
 }
 
 fn collect_header_files(

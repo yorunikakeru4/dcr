@@ -70,10 +70,14 @@ pub fn build(ctx: &BuildContext) -> Result<f64, String> {
     for flag in ctx.ldflags {
         cmd.arg(flag);
     }
+    let name = ctx.output_filename.unwrap_or(ctx.project_name);
+    let ext = ctx.output_extension.unwrap_or("");
+    let final_name = if ext.is_empty() { name.to_string() } else { format!("{}.{}", name, ext) };
+
     let out_path = if ctx.kind == "sharedlib" {
-        platform::shared_lib_path(ctx.profile, ctx.project_name, ctx.target_dir)
+        platform::shared_lib_path(ctx.profile, &final_name, ctx.target_dir)
     } else {
-        platform::bin_path(ctx.profile, ctx.project_name, ctx.target_dir)
+        platform::bin_path(ctx.profile, &final_name, ctx.target_dir)
     };
     cmd.arg("-o").arg(out_path);
 

@@ -337,6 +337,8 @@ fn collect_project_info_inner(root: &Path, profile: &str) -> Result<ProjectInfo,
         libs: &resolved.libs,
         cflags: &resolved_cflags,
         ldflags: &resolved_ldflags,
+        output_filename: None,
+        output_extension: None,
     };
 
     let sources = collect_sources(&ctx).map_err(|e| format!("Failed to collect sources: {e}"))?;

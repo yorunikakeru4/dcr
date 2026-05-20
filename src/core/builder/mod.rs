@@ -26,6 +26,8 @@ pub struct BuildContext<'a> {
     pub libs: &'a [String],
     pub cflags: &'a [String],
     pub ldflags: &'a [String],
+    pub output_filename: Option<&'a str>,
+    pub output_extension: Option<&'a str>,
 }
 
 pub fn build(ctx: &BuildContext) -> Result<f64, String> {
