@@ -3,6 +3,9 @@ name = "dcr"
 version = "0.6.7"
 edition = "2024"
 build = "build.rs"
+description = "DCR is a utility for managing C/C++ projects in a Cargo-like style."
+license = "MIT"
+repository = "https://github.com/dexoron/dcr"
 
 [dependencies]
 glob = "0.3"
