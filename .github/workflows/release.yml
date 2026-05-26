@@ -7,22 +7,18 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag (or branch) to build"
+        description: "Tag to build (e.g. v0.6.7)"
         required: true
-      run_notes:
-        description: "Generate release notes"
-        type: boolean
-        default: true
       run_linux:
-        description: "Build Linux (x86_64 + aarch64 + musl)"
+        description: "Build Linux"
         type: boolean
         default: true
       run_macos:
-        description: "Build macOS (x86_64 + aarch64)"
+        description: "Build macOS"
         type: boolean
         default: true
       run_windows:
-        description: "Build Windows (MSVC + GNU)"
+        description: "Build Windows"
         type: boolean
         default: true
       run_publish:
@@ -34,23 +30,42 @@ permissions:
   contents: write
 
 jobs:
+  # ── Resolve Tag ────────────────────────────────────────────────────────────
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.value }}
+      version: ${{ steps.tag.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${TAG#v}"
+          [[ "$TAG" == *"-"* ]] && PRERELEASE="true" || PRERELEASE="false"
+          echo "value=${TAG}"         >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}"   >> "$GITHUB_OUTPUT"
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+
+  # ── Release Notes ──────────────────────────────────────────────────────────
   notes:
+    needs: setup
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ needs.setup.outputs.tag }}
 
       - name: Prepare Release Notes
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            tag="${{ github.event.inputs.tag }}"
-            tag="${tag#v}"
-          else
-            tag="${GITHUB_REF_NAME#v}"
-          fi
+          tag="${{ needs.setup.outputs.version }}"
           notes_file=".github/release-notes.md"
           if grep -q "^## \\[${tag}\\]" CHANGELOG.md; then
             awk -v ver="$tag" '
@@ -72,7 +87,7 @@ jobs:
   # ── Linux ──────────────────────────────────────────────────────────────────
   build-linux:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_linux == 'true' }}
-    needs: notes
+    needs: [setup, notes]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -85,7 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ needs.setup.outputs.tag }}
 
       - name: Download Release Notes
         uses: actions/download-artifact@v4
@@ -111,28 +126,24 @@ jobs:
             cargo build --release --target ${{ matrix.target }}
           fi
 
-      - name: Derive version & asset name
-        run: |
-          RAW_TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          echo "RELEASE_TAG=${RAW_TAG}" >> "$GITHUB_ENV"
-          echo "RELEASE_VERSION=${RAW_TAG#v}" >> "$GITHUB_ENV"
-          echo "ASSET_NAME=dcr-${{ matrix.target }}-${RAW_TAG#v}" >> "$GITHUB_ENV"
-
       - name: Prepare Artifact
-        run: cp target/${{ matrix.target }}/release/dcr "$ASSET_NAME"
+        run: |
+          ASSET="dcr-${{ matrix.target }}-${{ needs.setup.outputs.version }}"
+          cp target/${{ matrix.target }}/release/dcr "$ASSET"
+          echo "ASSET_NAME=${ASSET}" >> "$GITHUB_ENV"
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ needs.setup.outputs.tag }}
           files: ${{ env.ASSET_NAME }}
           body_path: .github/release-notes.md
-          prerelease: ${{ contains(env.RELEASE_TAG, '-') }}
+          prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
 
   # ── macOS ──────────────────────────────────────────────────────────────────
   build-macos:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_macos == 'true' }}
-    needs: notes
+    needs: [setup, notes]
     strategy:
       fail-fast: false
       matrix:
@@ -145,7 +156,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ needs.setup.outputs.tag }}
 
       - name: Download Release Notes
         uses: actions/download-artifact@v4
@@ -161,28 +172,24 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Derive version & asset name
-        run: |
-          RAW_TAG="${{ github.event.inputs.tag || github.ref_name }}"
-          echo "RELEASE_TAG=${RAW_TAG}" >> "$GITHUB_ENV"
-          echo "RELEASE_VERSION=${RAW_TAG#v}" >> "$GITHUB_ENV"
-          echo "ASSET_NAME=dcr-${{ matrix.target }}-${RAW_TAG#v}" >> "$GITHUB_ENV"
-
       - name: Prepare Artifact
-        run: cp target/${{ matrix.target }}/release/dcr "$ASSET_NAME"
+        run: |
+          ASSET="dcr-${{ matrix.target }}-${{ needs.setup.outputs.version }}"
+          cp target/${{ matrix.target }}/release/dcr "$ASSET"
+          echo "ASSET_NAME=${ASSET}" >> "$GITHUB_ENV"
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ needs.setup.outputs.tag }}
           files: ${{ env.ASSET_NAME }}
           body_path: .github/release-notes.md
-          prerelease: ${{ contains(env.RELEASE_TAG, '-') }}
+          prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
 
   # ── Windows ────────────────────────────────────────────────────────────────
   build-windows:
     if: ${{ github.event_name == 'push' || github.event.inputs.run_windows == 'true' }}
-    needs: notes
+    needs: [setup, notes]
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -194,7 +201,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ needs.setup.outputs.tag }}
 
       - name: Download Release Notes
         uses: actions/download-artifact@v4
@@ -210,36 +217,32 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Derive version & asset name
-        shell: pwsh
-        run: |
-          $raw = "${{ github.event.inputs.tag || github.ref_name }}"
-          $ver = $raw -replace '^v', ''
-          "RELEASE_TAG=$raw" >> $env:GITHUB_ENV
-          "RELEASE_VERSION=$ver" >> $env:GITHUB_ENV
-          "ASSET_NAME=dcr-${{ matrix.target }}-${ver}.exe" >> $env:GITHUB_ENV
-
       - name: Prepare Artifact
         shell: pwsh
-        run: Copy-Item "target/${{ matrix.target }}/release/dcr.exe" "$env:ASSET_NAME"
+        run: |
+          $asset = "dcr-${{ matrix.target }}-${{ needs.setup.outputs.version }}.exe"
+          Copy-Item "target/${{ matrix.target }}/release/dcr.exe" "$asset"
+          "ASSET_NAME=$asset" >> $env:GITHUB_ENV
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ needs.setup.outputs.tag }}
           files: ${{ env.ASSET_NAME }}
           body_path: .github/release-notes.md
-          prerelease: ${{ contains(env.RELEASE_TAG, '-') }}
+          prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
 
   # ── crates.io ──────────────────────────────────────────────────────────────
   publish-crates:
-    if: ${{ (github.event_name == 'push' || github.event.inputs.run_publish == 'true') && !contains(github.event.inputs.tag || github.ref_name, '-') }}
-    needs: notes
+    if: |
+      (github.event_name == 'push' && needs.setup.outputs.prerelease == 'false') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_publish == 'true')
+    needs: [setup, build-linux, build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ needs.setup.outputs.tag }}
 
       - uses: dtolnay/rust-toolchain@stable
 
