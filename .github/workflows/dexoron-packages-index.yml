@@ -40,13 +40,24 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}/central-packages:/packages \
             archlinux:latest \
-            bash -c "
+            bash -c '
               cd /packages/archlinux/x86_64 && \
               rm -f dexoron.db dexoron.files && \
-              repo-add dexoron.db.tar.gz *.pkg.tar.zst && \
-              ln -sf dexoron.db.tar.gz dexoron.db && \
-              ln -sf dexoron.files.tar.gz dexoron.files
-            "
+              
+              # Включаем nullglob, чтобы пустая маска *.pkg.tar.zst не превращалась в одноименную строку
+              shopt -s nullglob
+              packages=(*.pkg.tar.zst)
+              
+              # Проверяем, есть ли бинарные пакеты в папке
+              if [ ${#packages[@]} -gt 0 ]; then
+                echo "Found ${#packages[@]} packages. Updating database..."
+                repo-add dexoron.db.tar.gz "${packages[@]}" && \
+                ln -sf dexoron.db.tar.gz dexoron.db && \
+                ln -sf dexoron.files.tar.gz dexoron.files
+              else
+                echo "No .pkg.tar.zst files found in directory. Skipping database update."
+              fi
+            '
 
       - name: Push to dexoron/packages
         run: |
