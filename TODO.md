@@ -57,9 +57,11 @@ Priority list of tasks to turn DCR into a true Cargo killer for C/C++ developers
 ---
 
 **Currently in progress:**
+
 - ...
 
 **Completed in recent releases:**
+
 - Workspaces
 - Cross-compilation
 - IDE config generation (VS Code, CLion, compile_commands.json)

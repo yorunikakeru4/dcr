@@ -8,11 +8,13 @@ Added:
 - `build.kind = "elf"` — bare-metal ELF executable support. Uses `elf_path()` output path, rejected by `dcr run`, no extra linker flags.
 - `build.filename` and `build.extension` in `dcr.toml` — complete control over the final artifact name without relying on `package.name`.
   Example:
+
   ```toml
   [build]
   filename = "KERNEL"
   extension = "EFI"
   ```
+
   Produces `KERNEL.EFI` (works for `bin`, `staticlib`, and `sharedlib`).
 - Automatic injection of `--target=<build.target>` into compiler flags when `build.target` is set in `dcr.toml`. This greatly simplifies clang-based cross-compilation (especially for bare-metal targets like `aarch64-none-elf`).
 - Bare-metal targets (containing `none`, `-elf`, `eabi`, `baremetal`) no longer receive DCR's internal default flags (`-g`, `-Wall`, `-Wextra`, `-fno-omit-frame-pointer`, `-DDCR_DEBUG`, etc.). Prevents unwanted sections (`.comment`, debug info, etc.) that break custom linker scripts when `inherit = true`.
@@ -158,10 +160,10 @@ Added:
 Added:
 
 - `dcr gen` command for IDE integration and build tool support
-    - `dcr gen project-info`: Output project metadata as JSON
-    - `dcr gen compile-commands`: Generate `compile_commands.json` for clangd and clang-tidy
-    - `dcr gen vscode`: Generate VS Code `.vscode/` integration (launch.json, tasks.json, settings.json)
-    - `dcr gen clion`: Generate JetBrains CLion `.idea/` integration (run configurations, build targets)
+- - `dcr gen project-info`: Output project metadata as JSON
+- - `dcr gen compile-commands`: Generate `compile_commands.json` for clangd and clang-tidy
+- - `dcr gen vscode`: Generate VS Code `.vscode/` integration (launch.json, tasks.json, settings.json)
+- - `dcr gen clion`: Generate JetBrains CLion `.idea/` integration (run configurations, build targets)
 - Full workspace support for all `gen` subcommands
 
 ## [0.2.10] - 2026-03-16

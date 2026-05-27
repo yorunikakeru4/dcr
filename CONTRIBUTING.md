@@ -31,7 +31,8 @@ DCR supports cross-compilation via `--target <triple>` or short names:
 - `dcr build --target windows --release` (maps to `x86_64-pc-windows-msvc`)
 - Full triples: `dcr build --target aarch64-linux-gnu --release`
 - Configure multiple targets in `dcr.toml`:
-  ```
+
+  ```toml
   [build.targets]
   targets = ["linux", "macos"]
 
@@ -41,6 +42,7 @@ DCR supports cross-compilation via `--target <triple>` or short names:
   [build.macos]
   compiler = "clang"
   ```
+
 - If no `--target`, builds for targets in `build.targets` or native if empty.
 
 ## Checks
@@ -70,10 +72,15 @@ cargo test
 - In PRs, include a short description and rationale.
 - Update documentation when behavior changes.
 
+## License
+
+This project is licensed under the **GNU General Public License v3.0**. By contributing, you agree that your contributions will be licensed under the same license.
+
 ## Questions
 
 If anything is unclear, open an issue or ask in the PR.
 
 You can also reach out directly:
+
 - TG: @dexoron
 - DS: dexoron

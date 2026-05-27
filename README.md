@@ -1,15 +1,18 @@
 # DCR (Dexoron Cargo Realization)
 
 DCR is a utility for managing C/C++ projects in a Cargo-like style.
+Created and maintained by **Dexoron (Bezotechestvo Vladimir)**.
 
 The current implementation is written in Rust.
 
 ## Why DCR
+
 - Unified project structure without manual setup
 - Simple commands for common tasks
 - Transparent compilation and predictable build profiles
 
 ## Features
+
 - Create a new project or initialize the current directory
 - Build a project with `debug` and `release` profiles
 - Run the compiled binary
@@ -28,6 +31,7 @@ The current implementation is written in Rust.
 - Update the binary via `dcr --update` (GitHub Releases)
 
 ## Supported Platforms
+
 - Linux: x86_64/aarch64 (GNU and Musl)
 - macOS: x86_64/aarch64
 - Windows: x86_64/aarch64 (MSVC, GNU, LLVM)
@@ -37,6 +41,7 @@ The current implementation is written in Rust.
 ### Package Manager
 
 **Arch Linux**
+
 ```sh
 yay -S dcr # or paru and other AUR package managers
 ```
@@ -64,10 +69,12 @@ irm https://dcr.dexoron.su/install.ps1 | iex
 ```
 
 When executed, both scripts ask whether to:
+
 - download a prebuilt binary from GitHub Releases
 - or build the project from `git`
 
 Release assets:
+
 - `dcr-x86_64-unknown-linux-gnu`
 - `dcr-x86_64-apple-darwin`
 - `dcr-aarch64-apple-darwin`
@@ -104,25 +111,31 @@ Build and run the project:
 ## Commands
 
 ### `dcr new <name>`
+
 Creates a project with the specified name in the current directory.
 
 ### `dcr init`
+
 Creates a project in the current directory. The project name is taken from the directory name. The directory must be empty.
 
 ### `dcr setup`
+
 Initializes the registry system by reading `~/.dcr/config.toml` and verifying the availability of configured indices.
 
 ### `dcr add <name> <source>`
+
 Adds a dependency to `dcr.toml`.
 If a registry is configured, `dcr` automatically finds the package.
 Git/Path syntax: `path:`, `github:`, `gitlab:`, `git:`, or a full URL.
 Use `--branch`, `--tag`, or `--rev` for Git dependencies.
 
 ### `dcr build [profile]`
+
 Builds the project. If no profile is specified, `--debug` is used.
 Use `--force` to rebuild without cache, `--clean` to clean before build.
 
 ### `dcr run [profile]`
+
 Builds the project and runs the binary. If no profile is specified, `--debug` is used.
 Use `--force` to rebuild without cache, `--clean` to clean before build.
 
@@ -130,21 +143,27 @@ Run manually:
 `./target/<profile>/<name>`
 
 ### `dcr clean`
+
 Removes the `target` directory in the project root.
 Use `dcr clean --all` in a workspace root to clean all member projects.
 
 ### `dcr gen`
+
 Generates IDE integration files and build tools.
+
 - `dcr gen vscode`: VS Code workspace config
 - `dcr gen clion`: CLion project files
 - `dcr gen compile-commands`: `compile_commands.json` for clang tools
 
 ### `dcr test`
+
 Runs the test suite.
 Use `dcr test --init` to create test files.
 
 ## Build Profiles
+
 Two profiles are supported:
+
 - `--debug` (default) - built-in flags per compiler
 - `--release` - built-in flags per compiler
 
@@ -190,6 +209,7 @@ compiler = "x86_64-w64-mingw32-gcc"
 See [Cross-compilation guide](docs/dependencies-and-build/cross-compilation.md) for details.
 
 ## Configuration
+
 The main project file is `dcr.toml`.
 For multi-registry management, use `~/.dcr/config.toml`.
 
@@ -238,6 +258,7 @@ Workspace example:
 kernel = { path = "src/kernel", deps = ["core", "userspace"] }
 core = { path = "src/core", deps = ["userspace"] }
 userspace = { path = "src/userspace" }
+
 ```
 
 Git and Path dependencies are supported. DCR will resolve them on build and generate `dcr.lock`.
@@ -252,5 +273,11 @@ Incremental build note: object files are rebuilt when source `.c/.cpp` or includ
 ## Releases
 Releases are built automatically via GitHub Actions (`.github/workflows/release.yml`) when a tag matching `v*` is pushed.
 
+## Authors
+
+- **Dexoron (Bezotechestvo Vladimir)** — main@dexoron.su — [github.com/dexoron](https://github.com/dexoron)
+- **Kiedie** — [github.com/peoplemiau1](https://github.com/peoplemiau1)
+
 ## License
-See `LICENSE`.
+
+This project is licensed under the **GNU General Public License v3.0**. See `LICENSE`.

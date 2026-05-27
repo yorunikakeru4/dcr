@@ -1,3 +1,20 @@
+// DCR — Cargo-like C/C++ project manager.
+//
+// Copyright (C) 2026 Dexoron (Bezotechestvo Vladimir) <main@dexoron.su>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
@@ -535,7 +552,10 @@ fn default_toml() -> Result<Value, ConfigError> {
     package.insert("type".to_string(), Value::String("none".to_string()));
     package.insert("description".to_string(), Value::String("".to_string()));
     package.insert("author".to_string(), Value::String("".to_string()));
-    package.insert("license".to_string(), Value::String("MIT".to_string()));
+    package.insert(
+        "license".to_string(),
+        Value::String("GPL-3.0-or-later".to_string()),
+    );
 
     let mut build = Map::new();
     build.insert(
