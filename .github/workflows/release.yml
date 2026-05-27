@@ -393,6 +393,77 @@ jobs:
           files: ${{ env.ASSET_NAME }}
           body_path: .github/release-notes.md
           prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
+ 
+  # ── Arch Linux Native Package (.pkg.tar.zst) ───────────────────────────────
+  build-arch-package:
+    if: ${{ github.event_name == 'push' || github.event.inputs.run_linux == 'true' }}
+    needs: [setup, notes]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.tag }}
+
+      - name: Build .pkg.tar.zst inside Arch Container
+        run: |
+          PKGVER='${{ needs.setup.outputs.version }}'
+          TAG='${{ needs.setup.outputs.tag }}'
+          SRC_URL="https://github.com/dexoron/dcr/archive/refs/tags/${TAG}.tar.gz"
+          SHA256="$(curl -fsSL "$SRC_URL" | sha256sum | awk '{print $1}')"
+          
+          mkdir -p arch-build
+          
+          cat > arch-build/PKGBUILD <<PKG
+          pkgname=dcr
+          pkgver=${PKGVER}
+          pkgrel=1
+          pkgdesc="Cargo-like utility to manage C/C++ projects"
+          arch=('x86_64')
+          url="https://github.com/dexoron/dcr"
+          license=('GPL-3.0-or-later')
+          depends=('gcc-libs')
+          makedepends=('cargo')
+          options=('!lto')
+          source=("\$pkgname-\$pkgver.tar.gz::\$url/archive/refs/tags/v\$pkgver.tar.gz")
+          sha256sums=('${SHA256}')
+
+          build() {
+            cd "\$srcdir/\$pkgname-\$pkgver"
+            cargo build --release --locked
+          }
+
+          package() {
+            cd "\$srcdir/\$pkgname-\$pkgver"
+            install -Dm755 "target/release/dcr" "\$pkgdir/usr/bin/dcr"
+            install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
+          }
+          PKG
+
+          docker run --rm \
+            -v ${{ github.workspace }}/arch-build:/build \
+            archlinux:latest \
+            bash -c "
+              pacman -Syu --noconfirm base-devel cargo gcc-libs git && \
+              useradd -m builduser && \
+              echo 'builduser ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers && \
+              chown -R builduser:builduser /build && \
+              cd /build && \
+              su builduser -c 'makepkg -s --noconfirm'
+            "
+
+      - name: Upload Arch Package Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-package
+          path: arch-build/*.pkg.tar.zst
+
+      - name: Upload Package to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.setup.outputs.tag }}
+          files: arch-build/*.pkg.tar.zst
+          prerelease: ${{ needs.setup.outputs.prerelease == 'true' }}
 
   # ── Arch User Repository (dcr) ───────────────────────────────────
   publish-aur:
@@ -606,6 +677,7 @@ jobs:
           git commit -m "dcr-bin ${{ needs.setup.outputs.version }}"
           git push
 
+     
   # ── crates.io ──────────────────────────────────────────────────────────────
   publish-crates:
     if: |
