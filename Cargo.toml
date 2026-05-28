@@ -23,13 +23,13 @@ assets = [
     ["target/release/dcr", "usr/bin/dcr", "755"],
 ]
 
-[package.metadata.rpm]
+[package.metadata.generate-rpm]
 summary = "Cargo-like utility to manage C/C++ projects"
 description = """
 Cargo-like utility to manage C/C++ projects.
 """
 
-[package.metadata.rpm.files]
+[package.metadata.generate-rpm.files]
 "/usr/bin/dcr" = { source = "target/release/dcr", mode = "755" }
 
 [dependencies]

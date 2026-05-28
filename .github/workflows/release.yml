@@ -211,7 +211,7 @@ jobs:
         if: matrix.package_type == 'snap'
         uses: snapcore/action-build@v1
         with:
-          path: packages/snap
+          path: packaging/snap
 
       - name: Prepare Snap Output
         if: matrix.package_type == 'snap'
@@ -371,7 +371,7 @@ jobs:
         with:
           usesh: true
           run: |
-            pkg install -y rust
+            pkg install -y rust perl gmake
             cargo build --release
 
       - name: Prepare FreeBSD Artifact
@@ -388,7 +388,7 @@ jobs:
         with:
           usesh: true
           run: |
-            pkg_add rust
+            pkg_add rust perl gmake
             cargo build --release
 
       - name: Prepare OpenBSD Artifact
@@ -405,7 +405,7 @@ jobs:
         with:
           usesh: true
           run: |
-            pkgin -y install rust
+            pkgin -y install rust perl gmake
             cargo build --release
 
       - name: Prepare NetBSD Artifact
