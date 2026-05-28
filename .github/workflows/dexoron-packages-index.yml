@@ -76,10 +76,13 @@ jobs:
           cd central-packages/debian
           dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz
           
-          echo "Origin: Dexoron" > Release
+          echo "Origin: Dexoron Packages" > Release
+          echo "Label: Dexoron Packages" >> Release
           echo "Suite: stable" >> Release
+          echo "Codename: stable" >> Release
           echo "Architectures: amd64" >> Release
           echo "Components: main" >> Release
+          echo "Description: Dexoron binary package repository" >> Release
           echo "Date: $(date -uR)" >> Release
           echo "SHA256:" >> Release
           echo " $(sha256sum Packages.gz | awk '{print $1" "$2}')" >> Release
