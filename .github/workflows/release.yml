@@ -205,8 +205,8 @@ jobs:
         if: matrix.package_type == 'snap'
         run: |
           cargo build --release
-          mkdir -p packaging/snap/dist
-          cp target/release/dcr packaging/snap/dist/
+          mkdir -p packaging/snap/dist/bin
+          cp target/release/dcr packaging/snap/dist/bin/
 
       - name: Snapcraft Build Action
         if: matrix.package_type == 'snap'
@@ -409,7 +409,7 @@ jobs:
           usesh: true
           run: |
             export PATH="/usr/pkg/bin:/usr/pkg/sbin:$PATH"
-            pkgin -y install rust perl gmake
+            pkg_add rust perl gmake
             cargo build --release
 
       - name: Prepare NetBSD Artifact
