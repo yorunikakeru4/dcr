@@ -18,7 +18,7 @@ permissions:
 jobs:
   update-packages-index:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout Central Packages Repo
@@ -53,7 +53,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: rpm-package
-          path: central-packages/rpm/x86_64/
+          path: central-packages/fedora/x86_64/
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
@@ -68,7 +68,8 @@ jobs:
           echo "Запрошен ручной импорт пакетов из релиза $TAG репозитория dexoron/dcr..."
           gh release download "$TAG" --repo dexoron/dcr --pattern "*.pkg.tar.zst" --dir central-packages/archlinux/x86_64/ --clobber
           gh release download "$TAG" --repo dexoron/dcr --pattern "*.deb" --dir central-packages/debian/ --clobber
-          gh release download "$TAG" --repo dexoron/dcr --pattern "*.rpm" --dir central-packages/rpm/x86_64/ --clobber
+          gh release download "$TAG" --repo dexoron/dcr --pattern "*.rpm" --dir central-packages/fedora/x86_64/ --clobber
+
       # --- ИНДЕКСАЦИЯ REPO ---
 
       - name: Update Pacman Database (Inside Arch Container)
@@ -109,7 +110,7 @@ jobs:
       - name: Update Fedora DNF Repository Index
         run: |
           sudo apt-get update && sudo apt-get install -y createrepo-c
-          cd central-packages/rpm/x86_64
+          cd central-packages/fedora/x86_64
           
           shopt -s nullglob
           rpm_packages=(*.rpm)
@@ -130,8 +131,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
           if [ -n "$(git status --porcelain)" ]; then
-            git add archlinux/ debian/ rpm/
-            git commit -m "chore: update repositories index (arch, debian, rpm)"
+            git add archlinux/ debian/ fedora/
+            git commit -m "chore: update repositories index (arch, debian, fedora)"
             git push
           else
             echo "No changes detected in repository databases."
