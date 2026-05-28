@@ -1,21 +1,35 @@
 name: Dexoron Packages Index
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Версия (тег) для ручного импорта пакетов (например, v0.6.9)"
+        required: true
+        type: string
   workflow_run:
-    workflows: ["Release"] # Укажи точное имя твоего релизного воркфлоу
+    workflows: ["Release"]
     types:
       - completed
 
+permissions:
+  contents: read
+
 jobs:
-  update-index:
+  update-packages-index:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-      - name: Checkout DCR repository
+      - name: Checkout Central Packages Repo
         uses: actions/checkout@v4
+        with:
+          repository: 'dexoron/packages'
+          token: ${{ secrets.PACKAGES_REPO_TOKEN }}
+          path: 'central-packages'
 
-      # --- СКАЧИВАНИЕ АРТЕФАКТОВ ИЗ РЕЛИЗА ---
+      # --- ВАРИАНТ A: АВТОМАШЕСТВО ИЗ РЕЛИЗА (WORKFLOW RUN) ---
+
       - name: Download Arch package artifact
         if: ${{ github.event_name == 'workflow_run' }}
         uses: actions/download-artifact@v4
@@ -43,31 +57,83 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
-      # --- КЛОНИРОВАНИЕ ИНДЕКСНОГО РЕПОЗИТОРИЯ ---
-      - name: Checkout Central Packages Repo
-        uses: actions/checkout@v4
-        with:
-          repository: dexoron/packages
-          token: ${{ secrets.PACKAGES_REPO_TOKEN }}
-          path: packages-repo
+      # --- ВАРИАНТ B: РУЧНОЙ ЗАПУСК ПО ТЕГУ (MANUAL DISPATCH) ---
 
-      # --- ПЕРЕНОС И ИНДЕКСАЦИЯ ---
-      - name: Copy packages to repo
+      - name: Download Packages from Release Assets
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
         run: |
-          cp -r central-packages/* packages-repo/ || true
+          echo "Запрошен ручной импорт пакетов из релиза $TAG репозитория dexoron/dcr..."
+          gh release download "$TAG" --repo dexoron/dcr --pattern "*.pkg.tar.zst" --dir central-packages/archlinux/x86_64/
+          gh release download "$TAG" --repo dexoron/dcr --pattern "*.deb" --dir central-packages/debian/
+          gh release download "$TAG" --repo dexoron/dcr --pattern "*.rpm" --dir central-packages/rpm/x86_64/
 
-      - name: Build Index
-        run: |
-          cd packages-repo
-          # Здесь находятся твои команды для генерации индексов (repo-add, dpkg-scanpackages, createrepo и т.д.)
-          echo "Run indexing scripts here"
+      # --- ИНДЕКСАЦИЯ REPO ---
 
-      # --- КОММИТ И ПУШ ---
-      - name: Commit and push changes
+      - name: Update Pacman Database (Inside Arch Container)
         run: |
-          cd packages-repo
+          docker run --rm \
+            -v ${{ github.workspace }}/central-packages:/packages \
+            archlinux:latest \
+            bash -c '
+              cd /packages/archlinux/x86_64 && \
+              rm -f dexoron.db dexoron.files && \
+              shopt -s nullglob
+              packages=(*.pkg.tar.zst)
+              if [ ${#packages[@]} -gt 0 ]; then
+                echo "Found ${#packages[@]} Arch packages. Updating database..."
+                repo-add dexoron.db.tar.gz "${packages[@]}" && \
+                ln -sf dexoron.db.tar.gz dexoron.db && \
+                ln -sf dexoron.files.tar.gz dexoron.files
+              else
+                echo "No .pkg.tar.zst files found. Skipping."
+              fi
+            '
+
+      - name: Update Debian APT Repository Index
+        run: |
+          sudo apt-get update && sudo apt-get install -y dpkg-dev
+          cd central-packages/debian
+          
+          shopt -s nullglob
+          deb_packages=(*.deb)
+          
+          if [ ${#deb_packages[@]} -gt 0 ]; then
+            echo "Found ${#deb_packages[@]} Debian packages. Generating Packages.gz..."
+            dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz
+          else
+            echo "No .deb files found. Skipping Debian index update."
+          fi
+
+      - name: Update Fedora DNF Repository Index
+        run: |
+          sudo apt-get update && sudo apt-get install -y createrepo-c
+          cd central-packages/rpm/x86_64
+          
+          shopt -s nullglob
+          rpm_packages=(*.rpm)
+          
+          if [ ${#rpm_packages[@]} -gt 0 ]; then
+            echo "Found ${#rpm_packages[@]} RPM packages. Generating repodata..."
+            createrepo_c .
+          else
+            echo "No .rpm files found. Skipping Fedora index update."
+          fi
+
+      # --- ПУШ ИЗМЕНЕНИЙ ---
+
+      - name: Push to dexoron/packages
+        run: |
+          cd central-packages
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "chore: update packages index" || echo "No changes to commit"
-          git push
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          if [ -n "$(git status --porcelain)" ]; then
+            git add archlinux/ debian/ rpm/
+            git commit -m "chore: update repositories index (arch, debian, rpm)"
+            git push
+          else
+            echo "No changes detected in repository databases."
+          fi
