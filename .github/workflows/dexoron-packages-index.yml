@@ -66,10 +66,9 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           echo "Запрошен ручной импорт пакетов из релиза $TAG репозитория dexoron/dcr..."
-          gh release download "$TAG" --repo dexoron/dcr --pattern "*.pkg.tar.zst" --dir central-packages/archlinux/x86_64/
-          gh release download "$TAG" --repo dexoron/dcr --pattern "*.deb" --dir central-packages/debian/
-          gh release download "$TAG" --repo dexoron/dcr --pattern "*.rpm" --dir central-packages/rpm/x86_64/
-
+          gh release download "$TAG" --repo dexoron/dcr --pattern "*.pkg.tar.zst" --dir central-packages/archlinux/x86_64/ --clobber
+          gh release download "$TAG" --repo dexoron/dcr --pattern "*.deb" --dir central-packages/debian/ --clobber
+          gh release download "$TAG" --repo dexoron/dcr --pattern "*.rpm" --dir central-packages/rpm/x86_64/ --clobber
       # --- ИНДЕКСАЦИЯ REPO ---
 
       - name: Update Pacman Database (Inside Arch Container)
